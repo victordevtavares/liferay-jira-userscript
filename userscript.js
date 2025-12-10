@@ -491,55 +491,51 @@
     }
 
     /*********** NEW FEATURE: EXPAND CCC ACCOUNT INFO ***********/
-    function expandCCCAccountInfo() {
-        // 1. Find the specific Header "CCC Account Info"
-        // We use text content to find the specific header, ignoring ID weirdness
-        const headers = document.querySelectorAll('h3');
-        let targetHeader = null;
+   function expandCCCInfo() {
+        // 1. Define the headers we want to target
+        const targetHeaders = [
+            "CCC Account Info",
+            "CCC Infrastructure Info",
+            "CCC SaaS Maintenance Info"
+        ];
 
-        for (let h of headers) {
-            if (h.textContent.trim() === "CCC Account Info") {
-                targetHeader = h;
-                break;
-            }
-        }
-
-        if (!targetHeader) return; // Header not loaded yet
-
-        // 2. Find the card directly associated with this header
-        // We look for the first object card that appears AFTER this header in the DOM
+        // 2. Find all headers (h3) and all Object Cards on the page
+        const allHeaders = Array.from(document.querySelectorAll('h3'));
         const allCards = document.querySelectorAll('[data-testid="issue-field-cmdb-object-lazy.ui.card.cmdb-object-card"]');
-        let targetCard = null;
 
-        for (let card of allCards) {
-            if (targetHeader.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING) {
-                targetCard = card;
-                break; // Stop at the first card found
-            }
-        }
+        // 3. Iterate through every card found
+        allCards.forEach(card => {
+            // Find the header that this card belongs to.
+            // We do this by filtering headers that appear BEFORE this specific card,
+            // and taking the last one (the nearest one).
+            const precedingHeaders = allHeaders.filter(h =>
+                (h.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING)
+            );
 
-        if (!targetCard) return; // Card not loaded yet
+            const nearestHeader = precedingHeaders.length > 0 ? precedingHeaders[precedingHeaders.length - 1] : null;
 
-        // 3. Find the Expand Button
-        const buttons = targetCard.querySelectorAll('button');
-        let expandBtn = null;
+            // 4. Check if the nearest header is one of our targets
+            if (nearestHeader && targetHeaders.includes(nearestHeader.textContent.trim())) {
 
-        buttons.forEach(btn => {
-            const testId = btn.getAttribute('data-testid') || "";
-            // We want the button that ISN'T the "View Details" (graph icon) or "Edit" (pencil)
-            if (!testId.includes('button-view-details') && !testId.includes('button-edit')) {
-                expandBtn = btn;
+                // 5. Find the Expand Button inside this specific card
+                const buttons = card.querySelectorAll('button');
+                let expandBtn = null;
+
+                buttons.forEach(btn => {
+                    const testId = btn.getAttribute('data-testid') || "";
+                    // Select the button that is NOT "View Details" or "Edit"
+                    if (!testId.includes('button-view-details') && !testId.includes('button-edit')) {
+                        expandBtn = btn;
+                    }
+                });
+
+                // 6. Click logic with Mutation Guard
+                if (expandBtn && !expandBtn.hasAttribute('data-userscript-auto-expanded')) {
+                    expandBtn.click();
+                    expandBtn.setAttribute('data-userscript-auto-expanded', 'true');
+                }
             }
         });
-
-        // 4. Click logic with Mutation Guard
-        // We add a custom attribute 'data-userscript-auto-expanded' to ensure we only click it once
-        // per session/reload, preventing an infinite open/close loop.
-        if (expandBtn && !expandBtn.hasAttribute('data-userscript-auto-expanded')) {
-            expandBtn.click();
-            expandBtn.setAttribute('data-userscript-auto-expanded', 'true');
-            // console.log("Auto-expanded CCC Account Info");
-        }
     }
 
 
@@ -629,7 +625,7 @@
         await createCustomerPortalField();
         removeSignatureFromInternalNote();
         addFlameIconToHighPriority();
-        expandCCCAccountInfo();
+        expandCCCInfo();
     }
 
     await updateUI();
@@ -637,9 +633,6 @@
     disableShortcuts();
     backgroundTabLinks();
 
-    // The observer handles the "Watch for object mutations" part.
-    // Since updateUI calls expandCCCAccountInfo, it will check specifically for the
-    // appearance of the card/button every time the DOM updates.
     const observer = new MutationObserver(updateUI);
     observer.observe(document.body, { childList: true, subtree: true });
 
